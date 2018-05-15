@@ -5,12 +5,21 @@ while offering the best possible flexibility.
 """
 
 import logging
-from functools import wraps
 
 from coalib.settings.FunctionMetadata import FunctionMetadata
 
 
 def _do_nothing(x): return x
+
+
+def profile_bears_decorator(func):
+    def wrapper_function(*args, **kwargs):
+        prof = kwargs.get('profiler', False)
+        kwargs.pop('profiler')
+        if prof:
+            prof.enable()
+        return func(*args, **kwargs)
+    return wrapper_function
 
 
 def deprecate_settings(**depr_args):
@@ -99,7 +108,6 @@ def deprecate_settings(**depr_args):
 
         logged_deprecated_args = set()
 
-        @wraps(func)
         def wrapping_function(*args, **kwargs):
             for arg, depr_value in wrapping_function.__metadata__.depr_values:
                 deprecated_arg = depr_value[0]
@@ -119,7 +127,12 @@ def deprecate_settings(**depr_args):
                     else:
                         kwargs[arg] = depr_arg_value
                     del kwargs[deprecated_arg]
-            return func(*args, **kwargs)
+            profile_bears = kwargs.get('profile_bears', False)
+            str_profile_bears = str(profile_bears).lower().strip()
+            if not str_profile_bears == u'false':
+                kwargs.pop('profile_bears')
+            return profile_bears_decorator(func)(*args, **kwargs) if not (
+                str_profile_bears == u'false') else func(*args, **kwargs)
 
         new_metadata = FunctionMetadata.from_function(func)
         new_metadata.depr_values = []
