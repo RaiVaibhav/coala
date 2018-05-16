@@ -20,7 +20,28 @@ from coalib.settings.Section import Section
 from coalib.settings.ConfigurationGathering import get_config_directory
 
 from .meta import bearclass
+import pdb
 
+db = pdb.Pdb()
+db.prompt = '(coala-debugger)'
+def debug_mode_function(func,*args,**kwargs):
+    x = func(*args, **kwargs)
+    results = []
+    print('starting pdb....')
+    try:
+        while True:
+                '''
+                As the Bear run() method is a “generator” so we will use “next()” function
+                (builtin function to get next value in generators) in pdb.runcall() to step
+                directly in run() method of Bear and advantage is
+                it will not stop at first yield of generator because It will trace the ‘next()’
+                iterator and stop it when it raise the ‘StopIteration’ error.
+                '''
+                # TODO: routine if func is not a generator and returns results
+                result = db.runcall(next, x)
+                results.append(result)
+    except StopIteration:
+        return results
 
 class Bear(Printer, LogPrinterMixin, metaclass=bearclass):
     """
@@ -288,6 +309,8 @@ class Bear(Printer, LogPrinterMixin, metaclass=bearclass):
                 self.name), str(err))
             return
 
+        x = self.run
+        debug_mode_function(x,*args,**kwargs)
         return self.run(*args, **kwargs)
 
     def execute(self, *args, debug=False, **kwargs):

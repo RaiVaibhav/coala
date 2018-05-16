@@ -393,7 +393,7 @@ def instantiate_processes(section,
     complete_file_dict = get_file_dict(complete_filename_list,
                                        allow_raw_files=use_raw_files)
 
-    if debug:
+    if debug or section['debug_bears']:
         from . import DebugProcessing as processing
     else:
         import multiprocessing as processing
@@ -599,7 +599,7 @@ def process_queues(processes,
     ignore_ranges = list(yield_ignore_ranges(file_dict))
 
     # One process is the logger thread (if not in debug mode)
-    while local_processes > (1 if not debug else 0):
+    while local_processes > (1 if not (debug or section['debug_bears']) else 0):
         try:
             control_elem, index = control_queue.get(timeout=0.1)
 
@@ -751,7 +751,7 @@ def execute_section(section,
                              results (bear names are key) as well as the
                              file dictionary.
     """
-    if debug:
+    if debug or section['debug_bears']:
         running_processes = 1
     else:
         try:
@@ -791,7 +791,7 @@ def execute_section(section,
 
     logger_thread = LogPrinterThread(arg_dict['message_queue'])
     # Start and join the logger thread along with the processes to run bears
-    if not debug:
+    if not (debug or section['debug_bears']):
         # in debug mode the logging messages are directly processed by the
         # message_queue
         processes.append(logger_thread)
@@ -799,6 +799,7 @@ def execute_section(section,
     for runner in processes:
         runner.start()
 
+    # import pdb; pdb.set_trace()
     try:
         return (process_queues(processes,
                                arg_dict['control_queue'],
@@ -816,7 +817,7 @@ def execute_section(section,
                 arg_dict['global_result_dict'],
                 arg_dict['file_dict'])
     finally:
-        if not debug:
+        if not (debug or section['debug_bears']):
             # in debug mode multiprocessing and logger_thread are disabled
             # ==> no need for following actions
             logger_thread.running = False
