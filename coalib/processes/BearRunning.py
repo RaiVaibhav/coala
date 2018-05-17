@@ -100,7 +100,7 @@ def run_bear(message_queue, timeout, bear_instance, *args, debug=False,
         del kwargs['dependency_results']
 
     name = bear_instance.name
-
+    kwargs['bear_name'] = name
     try:
         result_list = bear_instance.execute(*args, debug=debug, **kwargs)
     except (Exception, SystemExit) as exc:
@@ -167,7 +167,11 @@ def run_local_bear(message_queue,
                    file_dict,
                    bear_instance,
                    filename,
-                   debug=False):
+                   section_name,
+                   debug=False,
+                   profile_output=False,
+                   profile_dump=False,
+                   profile_commands=False):
     """
     Runs an instance of a local bear. Checks if bear_instance is of type
     LocalBear and then passes it to the run_bear to execute.
@@ -200,7 +204,11 @@ def run_local_bear(message_queue,
     kwargs = {'dependency_results':
               get_local_dependency_results(local_result_list,
                                            bear_instance),
-              'debug': debug}
+              'debug': debug,
+              'profile_output': profile_output,
+              'section_name': section_name,
+              'profile_dump':profile_dump,
+              'profile_commands':profile_commands}
     return run_bear(message_queue,
                     timeout,
                     bear_instance,
@@ -213,7 +221,11 @@ def run_global_bear(message_queue,
                     timeout,
                     global_bear_instance,
                     dependency_results,
-                    debug=False):
+                    section_name,
+                    debug=False,
+                    profile_output=False,
+                    profile_dump=False,
+                    profile_commands=False):
     """
     Runs an instance of a global bear. Checks if bear_instance is of type
     GlobalBear and then passes it to the run_bear to execute.
@@ -245,7 +257,11 @@ def run_global_bear(message_queue,
         return None
 
     kwargs = {'dependency_results': dependency_results,
-              'debug': debug}
+              'debug': debug,
+              'profile_output': profile_output,
+              'profile_dump': profile_dump,
+              'profile_commands': profile_commands,
+              'section_name': section_name}
     return run_bear(message_queue,
                     timeout,
                     global_bear_instance,
@@ -259,7 +275,11 @@ def run_local_bears_on_file(message_queue,
                             local_result_dict,
                             control_queue,
                             filename,
-                            debug=False):
+                            section_name,
+                            debug=False,
+                            profile_output=False,
+                            profile_dump=False,
+                            profile_commands=False):
     """
     This method runs a list of local bears on one file.
 
@@ -303,7 +323,11 @@ def run_local_bears_on_file(message_queue,
                                 file_dict,
                                 bear_instance,
                                 filename,
-                                debug=debug)
+                                section_name,
+                                debug=debug,
+                                profile_output=profile_output,
+                                profile_dump=profile_dump,
+                                profile_commands=profile_commands)
         if result is not None:
             local_result_list.extend(result)
 
@@ -393,7 +417,11 @@ def run_local_bears(filename_queue,
                     local_bear_list,
                     local_result_dict,
                     control_queue,
-                    debug=False):
+                    section_name,
+                    debug=False,
+                    profile_output=False,
+                    profile_dump=False,
+                    profile_commands=False):
     """
     Run local bears on all the files given.
 
@@ -426,7 +454,11 @@ def run_local_bears(filename_queue,
                                     local_result_dict,
                                     control_queue,
                                     filename,
-                                    debug=debug)
+                                    section_name,
+                                    debug=debug,
+                                    profile_output=profile_output,
+                                    profile_dump=profile_dump,
+                                    profile_commands=profile_commands)
             task_done(filename_queue)
     except queue.Empty:
         return
@@ -438,7 +470,11 @@ def run_global_bears(message_queue,
                      global_bear_list,
                      global_result_dict,
                      control_queue,
-                     debug=False):
+                     section_name,
+                     debug=False,
+                     profile_output=False,
+                     profile_dump=False,
+                     profile_commands=False):
     """
     Run all global bears.
 
@@ -468,8 +504,11 @@ def run_global_bears(message_queue,
                                      global_bear_list,
                                      global_result_dict))
             bearname = bear.__class__.__name__
-            result = run_global_bear(message_queue, timeout, bear, dep_results,
-                                     debug=debug)
+            result = run_global_bear(message_queue, timeout, bear, section_name,
+                                     dep_results, debug=debug,
+                                     profile_output=profile_output,
+                                     profile_dump=profile_dump,
+                                     profile_commands=profile_commands)
             if result:
                 global_result_dict[bearname] = result
                 control_queue.put((CONTROL_ELEMENT.GLOBAL, bearname))
@@ -489,8 +528,12 @@ def run(file_name_queue,
         global_result_dict,
         message_queue,
         control_queue,
+        section_name,
         timeout=0,
-        debug=False):
+        debug=False,
+        profile_output=False,
+        profile_dump=False,
+        profile_commands=False):
     """
     This is the method that is actually runs by processes.
 
@@ -548,7 +591,11 @@ def run(file_name_queue,
                         local_bear_list,
                         local_result_dict,
                         control_queue,
-                        debug=debug)
+                        section_name,
+                        debug=debug,
+                        profile_output=profile_output,
+                        profile_dump=profile_dump,
+                        profile_commands=profile_commands)
         control_queue.put((CONTROL_ELEMENT.LOCAL_FINISHED, None))
 
         run_global_bears(message_queue,
@@ -557,7 +604,11 @@ def run(file_name_queue,
                          global_bear_list,
                          global_result_dict,
                          control_queue,
-                         debug=debug)
+                         section_name,
+                         debug=debug,
+                         profile_output=profile_output,
+                         profile_dump=profile_dump,
+                         profile_commands=profile_commands)
         control_queue.put((CONTROL_ELEMENT.GLOBAL_FINISHED, None))
     except (OSError, KeyboardInterrupt):  # pragma: no cover
         if debug:

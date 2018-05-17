@@ -6,6 +6,16 @@ from .meta import aspectclass
 from coalib.settings.FunctionMetadata import FunctionMetadata
 
 
+def profile_bears_decorator(func):
+    def wrapper_function(self,*args, **kwargs):
+        prof = kwargs.get('profiler', False)
+        kwargs.pop('profiler')
+        if prof:
+            prof.enable()
+        return func(self,*args, **kwargs)
+    return wrapper_function
+
+
 def map_setting_to_aspect(**aspectable_setting):
     """
     Map function arguments with aspect and override it if appropriate.
@@ -24,7 +34,6 @@ def map_setting_to_aspect(**aspectable_setting):
         as value.
     """
     def _func_decorator(func):
-        @wraps(func)
         def _new_func(self, *args, **kwargs):
             if self.section.aspects:
                 aspects = self.section.aspects
@@ -41,7 +50,25 @@ def map_setting_to_aspect(**aspectable_setting):
                             kwargs[arg] = aspect_instance.tastes[
                                 aspect_value.name]
 
-            return func(self, *args, **kwargs)
+            profile_output = kwargs.get('profile_output', False)
+            profile_commands = kwargs.get('profile_commands',False)
+            flag = 0
+            if str(profile_output) is not u'False':
+                flag = 1
+                profile_bears = profile_output
+                kwargs.pop('profile_output')
+            elif str(profile_commands) is not u'False' :
+                flag = 1
+                profile_bears = profile_commands
+                kwargs.pop('profile_commands')
+
+            if flag:
+                str_profile_bears = str(profile_bears).lower().strip()
+                return profile_bears_decorator(func)(self,*args, **kwargs) if not (
+                    str_profile_bears == u'false') else func(self,*args, **kwargs)
+            else:
+                return func(self,*args,**kwargs)
+
 
         # Keep metadata
         _new_func.__metadata__ = FunctionMetadata.from_function(func)
