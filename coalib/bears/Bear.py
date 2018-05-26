@@ -4,6 +4,9 @@ from functools import partial
 from os import makedirs
 from os.path import join, abspath, exists
 import requests
+import types
+import pdb
+import logging
 from appdirs import user_data_dir
 
 from pyprint.Printer import Printer
@@ -18,9 +21,23 @@ from coalib.results.TextPosition import ZeroOffsetError
 from coalib.settings.FunctionMetadata import FunctionMetadata
 from coalib.settings.Section import Section
 from coalib.settings.ConfigurationGathering import get_config_directory
-
 from .meta import bearclass
 
+
+dbg = pdb.Pdb()
+def debug_mode_function(func,*args,**kwargs):
+    x = func(*args, **kwargs)
+    # The above line of code is also needed to call the debugger through
+    # decorators so that if any run() method is using decorators and also it
+    # is returning "sub_function()" and that sub_function() is
+    # yielding something.
+    results = []
+    try:
+        while True:
+            result = dbg.runcall(next, x)
+            results.append(result)
+    except StopIteration:
+        return results
 
 class Bear(Printer, LogPrinterMixin, metaclass=bearclass):
     """
@@ -232,7 +249,8 @@ class Bear(Printer, LogPrinterMixin, metaclass=bearclass):
     def __init__(self,
                  section: Section,
                  message_queue,
-                 timeout=0):
+                 timeout=0,
+                 debug_flag=False):
         """
         Constructs a new bear.
 
@@ -252,6 +270,7 @@ class Bear(Printer, LogPrinterMixin, metaclass=bearclass):
         self.section = section
         self.message_queue = message_queue
         self.timeout = timeout
+        self.debug_flag = debug_flag
 
         self.setup_dependencies()
         cp = type(self).check_prerequisites()
@@ -274,6 +293,27 @@ class Bear(Printer, LogPrinterMixin, metaclass=bearclass):
     def run(self, *args, dependency_results=None, **kwargs):
         raise NotImplementedError
 
+    def debugger_config(self,*args,**kwargs):
+        if (isinstance(self.run(*args, **kwargs), types.GeneratorType)) and \
+            ((u'wrapping_function of' in str(self.run)) or
+                (u'_new_func of' in str(self.run))):
+            kwargs['debug_flag'] = self.debug_flag
+            debug_mode_function(self.run,*args,**kwargs)
+            kwargs.pop('debug_flag')
+
+        elif (isinstance(self.run(*args, **kwargs), types.GeneratorType)):
+            dbg.runcall(self.run,*args, **kwargs)
+            debug_mode_function(self.run,*args,**kwargs)
+
+        elif (isinstance(self.run(*args, **kwargs),(str,type(None)))) and \
+                ((u'wrapping_function of' in str(self.run)) or
+                    (u'_new_func of' in str(self.run))):
+            kwargs['debug_flag'] = self.debug_flag
+            self.run(*args, **kwargs)
+            kwargs.pop('debug_flag')
+        else:
+            dbg.runcall(self.run,*args,**kwargs)
+
     def run_bear_from_section(self, args, kwargs):
         try:
             # Don't get `language` setting from `section.contents`
@@ -287,7 +327,10 @@ class Bear(Printer, LogPrinterMixin, metaclass=bearclass):
             self.warn('The bear {} cannot be executed.'.format(
                 self.name), str(err))
             return
-
+        if self.debug_flag:
+            self.debugger_config(*args, **kwargs)
+        else:
+            return self.run(*args, **kwargs)
         return self.run(*args, **kwargs)
 
     def execute(self, *args, debug=False, **kwargs):
@@ -354,7 +397,6 @@ class Bear(Printer, LogPrinterMixin, metaclass=bearclass):
         """
         Override JSON export of ``Bear`` object.
         """
-        # json cannot serialize properties, so drop them
         _dict = {key: value for key, value in get_public_members(cls).items()
                  if not isinstance(value, property)}
         metadata = cls.get_metadata()
