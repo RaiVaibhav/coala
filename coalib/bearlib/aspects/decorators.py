@@ -4,7 +4,8 @@ from functools import wraps
 from .taste import Taste
 from .meta import aspectclass
 from coalib.settings.FunctionMetadata import FunctionMetadata
-
+import pdb
+dbg = pdb.Pdb()
 
 def map_setting_to_aspect(**aspectable_setting):
     """
@@ -24,7 +25,7 @@ def map_setting_to_aspect(**aspectable_setting):
         as value.
     """
     def _func_decorator(func):
-        @wraps(func)
+
         def _new_func(self, *args, **kwargs):
             if self.section.aspects:
                 aspects = self.section.aspects
@@ -41,11 +42,18 @@ def map_setting_to_aspect(**aspectable_setting):
                             kwargs[arg] = aspect_instance.tastes[
                                 aspect_value.name]
 
+            debug_flag = kwargs.get('debug_flag')
+            if debug_flag:
+                kwargs.pop('debug_flag')
+                dbg.runcall(func,self,*args,**kwargs)
             return func(self, *args, **kwargs)
 
         # Keep metadata
         _new_func.__metadata__ = FunctionMetadata.from_function(func)
 
+        _new_func.__doc__ = func.__doc__
+        # The above line of code is needed, so that docstring of any bear
+        # can't lost because of removing the the @warps tool.
         return _new_func
 
     return _func_decorator
