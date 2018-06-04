@@ -1,12 +1,14 @@
 from collections import defaultdict
 import datetime
-from io import BytesIO
+# import io
+from io import BytesIO, StringIO
 import multiprocessing
 import unittest
 from os.path import abspath, exists, isfile, join, getmtime
 import shutil
 
 from freezegun import freeze_time
+from unittest.mock import patch
 
 import requests
 import requests_mock
@@ -14,7 +16,7 @@ import requests_mock
 from coalib.bearlib.aspects.collections import AspectList
 from coalib.bearlib.aspects.Metadata import CommitMessage
 from coalib.bearlib.languages.Language import Language, Languages
-from coalib.bears.Bear import Bear
+from coalib.bears.Bear import Bear, db, debug_mode_function
 from coalib.bears.BEAR_KIND import BEAR_KIND
 from coalib.bears.GlobalBear import GlobalBear
 from coalib.bears.LocalBear import LocalBear
@@ -120,6 +122,16 @@ class StandAloneBear(Bear):
         yield x
         yield y
         yield z
+
+
+class TestOneBear(Bear):
+
+    def __init__(self, section, queue, timeout=0.1, debug_flag=False):
+        Bear.__init__(self, section, queue, timeout, debug_flag)
+
+    def run(self, *args, **kwargs):
+        yield 1
+        yield 2
 
 
 class DependentBear(Bear):
@@ -462,6 +474,95 @@ class BearTest(BearTestBase):
         self.assertIsInstance(result, Language)
         self.assertEqual(str(result), 'Hypertext Markup Language 5.1')
         self.check_message(LOG_LEVEL.DEBUG)
+
+    # @patch('coalib.bears.Bear.dbg.runcall', side_effect=((1,2),3,4))
+    # def test_debug_mode_func_with_(self, runcall):
+    #     section = Section('name')
+    #     my_bear = TestOneBear(section,self.queue, debug_flag=True)
+    #     args = {}
+    #     kwargs = {}
+    #    self.assertEqual(my_bear.debug_mode_function(my_bear.run, dbg, args,
+    #                                                 kwargs), [3,4])
+
+    # def test_dbg(self):
+    #     arg = ()
+    #     # import pdb; pdb.set_trace()
+    #     with self.assertRaises(AttributeError):
+    #         dbg.do_continue(arg)
+    #     # self.assertRaises(dbg.do_continue(arg), AttributeError)
+    #
+    # @patch('coalib.bears.Bear.dbg.runcall', side_effect=((1,2),3,4))
+    # def test_debug_mode_func_with_(self, runcall):
+    #     section = Section('name')
+    #     my_bear = TestOneBear(section,self.queue, debug_flag=True)
+    #     args = {}
+    #     kwargs = {}
+    #     self.assertEqual(debug_mode_function(my_bear.run, dbg, args, kwargs),
+    #                                          [3,4])
+    #
+    # @patch('coalib.bears.Bear.dbg.runcall', return_value=1)
+    # def test_dmy_ebug_mode_func(self, runcall):
+    #     section = Section('name')
+    #     my_bear = TestOneBear(section,self.queue, debug_flag=True)
+    #     args = {}
+    #     kwargs = {}
+    #     self.assertEqual(debug_mode_function(my_bear.run, dbg, args, kwargs),
+    #                                          [])
+    #     self.assertEqual(type(my_bear.run_bear_from_section(args, kwargs)),
+    #                           type(my_bear.run(args, kwargs)))
+
+    # @patch('coalib.bears.Bear.dbg.runcall',return_value=1)
+    # def test_bbb_ebug_mode_func(self, runcall):
+    #     section = Section('name')
+    #     my_bear = TestOneBear(section,self.queue, debug_flag=True)
+    #     args = {}
+    #     kwargs = {}
+    #    self.assertEqual(type(my_bear.run_bear_from_section(args, kwargs)),
+    #                          type(my_bear.run(args, kwargs)))
+
+    # def test_my_debug_mode_func(self):
+    #     section = Section('name')
+    #     my_bear = TestOneBear(section,self.queue, debug_flag=True)
+    #     dbg.runcall = MagicMock()
+    #     dbg.runcall.return_value = 1
+    #     args = {}
+    #     kwargs = {}
+    #     self.assertEqual(debug_mode_function(my_bear.run, dbg, args, kwargs),
+    #                      [])
+
+    # def test_debug_flag(self):
+    #     section = Section('name')
+    #     my_bear = TestOneBear(section,self.queue, debug_flag=True)
+    #     # dbg.runcall = MagicMock()
+    #     # dbg.runcall.side_effect = ((1,2),3,4)
+    #     # my_bear.debug_mode_function = MagicMock()
+    #     args = {}
+    #     kwargs = {}
+    #     my_bear.run_bear_from_section(args , kwargs)
+    #     my_bear.debug_mode_function.assert_called_once_with(my_bear.run, dbg)
+
+    def test_debug_mode_function(self):
+        # section = Section('name')
+        args = {}
+        kwargs = {}
+        # my_bear = TestOneBear(section,self.queue, debug_flag=True)
+
+        def fun(*args, **kwargs):
+            yield 1
+            yield 2
+
+        something = StringIO
+        input = something("q\nq\nq")
+        output = StringIO()
+        dbg = db(stdin=input ,stdout=output)
+        dbg.do_q = dbg.do_continue
+        self.assertEqual(debug_mode_function(fun, dbg, *args, **kwargs), [1,2])
+        # import pdb; pdb.set_trace()
+        my_output = output.getvalue()
+        self.assertEqual(my_output.split('\n')[1], '-> yield 1')
+        self.assertEqual(my_output.split('\n')[3], '-> yield 2')
+        output.close()
+        something().close()
 
 
 class BrokenReadHTTPResponse(BytesIO):
