@@ -4,6 +4,8 @@ from functools import partial
 from os import makedirs
 from os.path import join, abspath, exists
 import requests
+import pdb
+import collections
 from appdirs import user_data_dir
 
 from pyprint.Printer import Printer
@@ -20,6 +22,21 @@ from coalib.settings.Section import Section
 from coalib.settings.ConfigurationGathering import get_config_directory
 
 from .meta import bearclass
+
+
+def debug_mode_function(func, dbg, *args, **kwargs):
+    results = []
+    bear_results = dbg.runcall(func, *args, **kwargs)
+    if isinstance(bear_results, collections.Iterable):
+        try:
+            iterator = iter(bear_results)
+            while True:
+                result = dbg.runcall(next, iterator)
+                results.append(result)
+        except StopIteration:
+            return results
+    else:
+        return results
 
 
 class Bear(Printer, LogPrinterMixin, metaclass=bearclass):
@@ -232,7 +249,8 @@ class Bear(Printer, LogPrinterMixin, metaclass=bearclass):
     def __init__(self,
                  section: Section,
                  message_queue,
-                 timeout=0):
+                 timeout=0,
+                 debugger=False):
         """
         Constructs a new bear.
 
@@ -252,6 +270,7 @@ class Bear(Printer, LogPrinterMixin, metaclass=bearclass):
         self.section = section
         self.message_queue = message_queue
         self.timeout = timeout
+        self.debugger = debugger
 
         self.setup_dependencies()
         cp = type(self).check_prerequisites()
@@ -287,7 +306,11 @@ class Bear(Printer, LogPrinterMixin, metaclass=bearclass):
             self.warn('The bear {} cannot be executed.'.format(
                 self.name), str(err))
             return
-
+        if self.debugger:
+            dbg = pdb.Pdb()
+            debug_mode_function(self.run, dbg, *args, **kwargs)
+        else:
+            return self.run(*args, **kwargs)
         return self.run(*args, **kwargs)
 
     def execute(self, *args, debug=False, **kwargs):

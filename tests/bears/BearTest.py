@@ -7,14 +7,16 @@ from os.path import abspath, exists, isfile, join, getmtime
 import shutil
 
 from freezegun import freeze_time
+from unittest.mock import patch
 
 import requests
 import requests_mock
+import pdb
 
 from coalib.bearlib.aspects.collections import AspectList
 from coalib.bearlib.aspects.Metadata import CommitMessage
 from coalib.bearlib.languages.Language import Language, Languages
-from coalib.bears.Bear import Bear
+from coalib.bears.Bear import Bear, debug_mode_function
 from coalib.bears.BEAR_KIND import BEAR_KIND
 from coalib.bears.GlobalBear import GlobalBear
 from coalib.bears.LocalBear import LocalBear
@@ -120,6 +122,15 @@ class StandAloneBear(Bear):
         yield x
         yield y
         yield z
+
+
+class TestOneBear(Bear):
+    def __init__(self, section, queue, timeout=0.1, debug_flag=False):
+        Bear.__init__(self, section, queue, timeout, debug_flag)
+
+    def run(self, *args, **kwargs):
+        yield 1
+        yield 2
 
 
 class DependentBear(Bear):
@@ -462,6 +473,31 @@ class BearTest(BearTestBase):
         self.assertIsInstance(result, Language)
         self.assertEqual(str(result), 'Hypertext Markup Language 5.1')
         self.check_message(LOG_LEVEL.DEBUG)
+
+    # @patch('pdb.Pdb.do_continue')
+    # def test_do_continue(self, do_continue):
+    #     arg = {}
+    #     self.assertEqual(dbg.do_continue(arg), 1)
+
+    @patch('pdb.Pdb.runcall', side_effect=((1, 2), 3, 4))
+    def test_debug_mode_func_with_return(self, runcall):
+        section = Section('name')
+        my_bear = TestOneBear(section, self.queue, debug_flag=True)
+        args = {}
+        kwargs = {}
+        self.assertEqual(debug_mode_function(my_bear.run, pdb.Pdb, *args,
+                                             **kwargs), [3, 4])
+
+    @patch('pdb.Pdb.runcall', return_value=1)
+    def test_debug_mode_func_with_no_return(self, runcall):
+        section = Section('name')
+        my_bear = TestOneBear(section, self.queue, debug_flag=True)
+        args = {}
+        kwargs = {}
+        self.assertEqual(debug_mode_function(my_bear.run, pdb.Pdb, *args,
+                                             **kwargs), [])
+        self.assertEqual(type(my_bear.run_bear_from_section(args, kwargs)),
+                         type(my_bear.run(args, kwargs)))
 
 
 class BrokenReadHTTPResponse(BytesIO):
