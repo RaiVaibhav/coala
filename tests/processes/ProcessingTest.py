@@ -604,8 +604,22 @@ class ProcessingTest(unittest.TestCase):
         self.assertGreater(len(cache.data), 0)
 
     def test_global_instantiation(self):
+        class TestThreeBear(Bear):
+
+            def __init__(self,
+                         file_dict,
+                         section,
+                         queue, timeout=0.1,
+                         debugger=False):
+                raise RuntimeError
+                Bear.__init__(self, section, queue, timeout, debugger)
+
+            def run(self, filename, file):
+                pass
 
         class TestTwoBear(Bear):
+
+            BEAR_DEPS = {TestThreeBear}
 
             def __init__(self,
                          file_dict,
@@ -635,18 +649,16 @@ class ProcessingTest(unittest.TestCase):
         global_bear_list = [TestOneBear, TestTwoBear]
         section = Section('name')
         list1, list2 = instantiate_bears(section,
-                                         [],
-                                         global_bear_list,
-                                         {},
-                                         self.queue,
+                                         [],global_bear_list,{},self.queue,
                                          console_printer=self.console_printer,
                                          debug=False,
-                                         debug_bears=['TestOneBear'])
+                                         debug_bears=['TestOneBear',
+                                                      'TestTwoBear'])
 
         self.assertEqual(len(list1), 0)
         self.assertEqual(len(list2), 1)
         with self.assertRaises(RuntimeError):
-            global_bear_list = [TestTwoBear]
+            global_bear_list = [TestThreeBear]
             instantiate_bears(self.sections['cli'],
                               [],
                               global_bear_list,

@@ -31,7 +31,7 @@ class db(pdb.Pdb):
         self.do_quit = self.custom_quit
         self.do_exit = self.custom_quit
         super(db, self).__init__(completekey='tab', stdin=None, stdout=None,
-                                 skip=None, nosigint=False, readrc=True)
+                                 skip=None, nosigint=False)
 
     def custom_quit(self, arg):
         self.clear_all_breaks()
