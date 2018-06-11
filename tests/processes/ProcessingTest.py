@@ -347,39 +347,6 @@ class ProcessingTest(unittest.TestCase):
             # python modules subprocess and os
             self.assertEqual(p.pid, pgid)
 
-    def test_filter_raising_callables(self):
-        class A(Exception):
-            pass
-
-        class B(Exception):
-            pass
-
-        class C(Exception):
-            pass
-
-        def create_exception_raiser(exception):
-            def raiser(exc):
-                if exception in exc:
-                    raise exception
-                return exception
-            return raiser
-
-        raiseA, raiseB, raiseC = (create_exception_raiser(exc)
-                                  for exc in [A, B, C])
-
-        test_list = [raiseA, raiseC, raiseB, raiseC]
-        self.assertEqual(list(filter_raising_callables(test_list, A, (A,))),
-                         [C, B, C])
-
-        self.assertEqual(list(filter_raising_callables(test_list,
-                                                       (B, C),
-                                                       exc=(B, C))),
-                         [A])
-
-        # Test whether non filtered exceptions bubble up.
-        with self.assertRaises(B):
-            list(filter_raising_callables(test_list, C, exc=(B, C)))
-
     def test_get_file_dict(self):
         with LogCapture() as capture:
             file_dict = get_file_dict([self.testcode_c_path], self.log_printer)
