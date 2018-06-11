@@ -4,6 +4,8 @@ from functools import partial
 from os import makedirs
 from os.path import join, abspath, exists
 import requests
+import pdb
+import collections
 from appdirs import user_data_dir
 
 from pyprint.Printer import Printer
@@ -20,6 +22,36 @@ from coalib.settings.Section import Section
 from coalib.settings.ConfigurationGathering import get_config_directory
 
 from .meta import bearclass
+
+
+class db(pdb.Pdb):
+    def __init__(self, completekey='tab', stdin=None, stdout=None, skip=None,
+                 nosigint=False, readrc=True):
+        self.do_q = self.custom_quit
+        self.do_quit = self.custom_quit
+        self.do_exit = self.custom_quit
+        super(db, self).__init__(completekey='tab', stdin=None, stdout=None,
+                                 skip=None, nosigint=False, readrc=True)
+
+    def custom_quit(self, arg):
+        self.clear_all_breaks()
+        super().do_continue(arg)
+        return 1
+
+
+def debug_run(func, dbg=pdb.Pdb(), *args, **kwargs):
+    bear_results = dbg.runcall(func, *args, **kwargs)
+    if isinstance(bear_results, collections.Iterable):
+        results = []
+        iterator = iter(bear_results)
+        try:
+            while True:
+                result = dbg.runcall(next, iterator)
+                results.append(result)
+        except StopIteration:
+            return results
+    else:
+        return bear_results
 
 
 class Bear(Printer, LogPrinterMixin, metaclass=bearclass):
@@ -232,7 +264,8 @@ class Bear(Printer, LogPrinterMixin, metaclass=bearclass):
     def __init__(self,
                  section: Section,
                  message_queue,
-                 timeout=0):
+                 timeout=0,
+                 debugger=False):
         """
         Constructs a new bear.
 
@@ -252,6 +285,7 @@ class Bear(Printer, LogPrinterMixin, metaclass=bearclass):
         self.section = section
         self.message_queue = message_queue
         self.timeout = timeout
+        self.debugger = debugger
 
         self.setup_dependencies()
         cp = type(self).check_prerequisites()
@@ -287,8 +321,10 @@ class Bear(Printer, LogPrinterMixin, metaclass=bearclass):
             self.warn('The bear {} cannot be executed.'.format(
                 self.name), str(err))
             return
-
-        return self.run(*args, **kwargs)
+        if self.debugger:
+            return debug_run(self.run, db(), *args, **kwargs)
+        else:
+            return self.run(*args, **kwargs)
 
     def execute(self, *args, debug=False, **kwargs):
         name = self.name
