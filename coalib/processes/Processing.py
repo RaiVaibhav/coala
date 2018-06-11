@@ -292,24 +292,6 @@ def get_file_dict(filename_list, log_printer=None, allow_raw_files=False):
     return file_dict
 
 
-def filter_raising_callables(it, exception, *args, debug=False, **kwargs):
-    """
-    Filters all callable items inside the given iterator that raise the
-    given exceptions.
-
-    :param it:        The iterator to filter.
-    :param exception: The (tuple of) exception(s) to filter for.
-    :param args:      Positional arguments to pass to the callable.
-    :param kwargs:    Keyword arguments to pass to the callable.
-    """
-    for elem in it:
-        try:
-            yield elem(*args, **kwargs)
-        except exception:
-            if debug:
-                raise
-
-
 def instantiate_bears(section,
                       local_bear_list,
                       global_bear_list,
