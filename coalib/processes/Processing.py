@@ -292,31 +292,14 @@ def get_file_dict(filename_list, log_printer=None, allow_raw_files=False):
     return file_dict
 
 
-def filter_raising_callables(it, exception, *args, debug=False, **kwargs):
-    """
-    Filters all callable items inside the given iterator that raise the
-    given exceptions.
-
-    :param it:        The iterator to filter.
-    :param exception: The (tuple of) exception(s) to filter for.
-    :param args:      Positional arguments to pass to the callable.
-    :param kwargs:    Keyword arguments to pass to the callable.
-    """
-    for elem in it:
-        try:
-            yield elem(*args, **kwargs)
-        except exception:
-            if debug:
-                raise
-
-
 def instantiate_bears(section,
                       local_bear_list,
                       global_bear_list,
                       file_dict,
                       message_queue,
                       console_printer,
-                      debug=False):
+                      debug=False,
+                      debug_bears=False):
     """
     Instantiates each bear with the arguments it needs.
 
@@ -330,26 +313,42 @@ def instantiate_bears(section,
     :param console_printer:  Object to print messages on the console.
     :return:                 The local and global bear instance lists.
     """
-    local_bear_list = [bear
-                       for bear in filter_raising_callables(
-                           local_bear_list,
-                           RuntimeError,
-                           section,
-                           message_queue,
-                           timeout=0.1,
-                           debug=debug)]
+    for bear in local_bear_list + global_bear_list:
+        for deps_bear in bear.BEAR_DEPS:
+            if debug_bears is not False and (bear.__name__ in debug_bears and (
+                    deps_bear.__name__ not in debug_bears)):
+                debug_bears.append(deps_bear.__name__)
 
-    global_bear_list = [bear
-                        for bear in filter_raising_callables(
-                            global_bear_list,
-                            RuntimeError,
-                            file_dict,
-                            section,
-                            message_queue,
-                            timeout=0.1,
-                            debug=debug)]
+    instantiated_local_bear_list = []
+    instantiated_global_bear_list = []
+    for bear in local_bear_list:
+        try:
+            debugger = True if debug_bears is not False and (
+                    debug_bears[0] == 'True' or (
+                        bear.__name__ in debug_bears)) else False
+            instantiated_local_bear_list.append(bear(section,
+                                                     message_queue,
+                                                     timeout=0.1,
+                                                     debugger=debugger))
+        except RuntimeError:
+            if debug:
+                raise
 
-    return local_bear_list, global_bear_list
+    for bear in global_bear_list:
+        try:
+            debugger = True if debug_bears is not False and (
+                    debug_bears[0] == 'True' or (
+                        bear.__name__ in debug_bears)) else False
+            instantiated_global_bear_list.append(bear(file_dict,
+                                                      section,
+                                                      message_queue,
+                                                      timeout=0.1,
+                                                      debugger=debugger))
+        except RuntimeError:
+            if debug:
+                raise
+
+    return instantiated_local_bear_list, instantiated_global_bear_list
 
 
 def instantiate_processes(section,
