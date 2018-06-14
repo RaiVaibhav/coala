@@ -95,7 +95,7 @@ before_script:
   - python .misc/check_setuptools.py
 
 script:
-  - py.test
+  - .misc/pytest_run.sh
   - python setup.py bdist_wheel
   - pip install ./dist/coala-*.whl
   - pip install coala-bears[alldeps] --pre -U
