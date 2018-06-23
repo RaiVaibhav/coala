@@ -1,3 +1,4 @@
+import pdb
 from collections import defaultdict
 import datetime
 from io import BytesIO
@@ -7,6 +8,7 @@ from os.path import abspath, exists, isfile, join, getmtime
 import shutil
 
 from freezegun import freeze_time
+from unittest.mock import patch
 
 import requests
 import requests_mock
@@ -14,7 +16,7 @@ import requests_mock
 from coalib.bearlib.aspects.collections import AspectList
 from coalib.bearlib.aspects.Metadata import CommitMessage
 from coalib.bearlib.languages.Language import Language, Languages
-from coalib.bears.Bear import Bear
+from coalib.bears.Bear import Bear, Debugger, debug_run
 from coalib.bears.BEAR_KIND import BEAR_KIND
 from coalib.bears.GlobalBear import GlobalBear
 from coalib.bears.LocalBear import LocalBear
@@ -120,6 +122,15 @@ class StandAloneBear(Bear):
         yield x
         yield y
         yield z
+
+
+class TestOneBear(Bear):
+    def __init__(self, section, queue, timeout=0.1, debugger=False):
+        Bear.__init__(self, section, queue, timeout, debugger)
+
+    def run(self, *args, **kwargs):
+        yield 1
+        yield 2
 
 
 class DependentBear(Bear):
@@ -462,6 +473,32 @@ class BearTest(BearTestBase):
         self.assertIsInstance(result, Language)
         self.assertEqual(str(result), 'Hypertext Markup Language 5.1')
         self.check_message(LOG_LEVEL.DEBUG)
+
+    # Mock test added to solve the coverage problem by DebugBearsTest
+    @patch('pdb.Pdb.do_continue')
+    def test_custom_continue(self, do_continue):
+        arg = {}
+        Debugger().do_quit(arg)
+        pdb.Pdb.do_continue.assert_called_once_with(arg)
+        self.assertEqual(Debugger().do_quit(arg), 1)
+
+    @patch('coalib.bears.Bear.Debugger.runcall', side_effect=((1, 2), 1, 2))
+    def test_debug_run_with_return(self, runcall):
+        section = Section('name')
+        my_bear = TestOneBear(section, self.queue, debugger=True)
+        args = ('a', ('b', 'c'))
+        kwargs = {'d': 'e'}
+        self.assertEqual(debug_run(my_bear.run, Debugger, *args, **kwargs),
+                         [1, 2])
+
+    @patch('coalib.bears.Bear.Debugger.runcall', return_value=1)
+    def test_debug_run_with_no_return(self, runcall):
+        section = Section('name')
+        my_bear = TestOneBear(section, self.queue, debugger=True)
+        args = ('a', ('b', 'c'))
+        kwargs = {'d': 'e'}
+        self.assertEqual(debug_run(my_bear.run, Debugger, *args, **kwargs), 1)
+        self.assertIsNotNone(my_bear.run_bear_from_section(args, kwargs))
 
 
 class BrokenReadHTTPResponse(BytesIO):
