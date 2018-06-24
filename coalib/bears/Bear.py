@@ -27,12 +27,62 @@ from .meta import bearclass
 class Debugger(pdb.Pdb):
 
     def do_quit(self, arg):
+        self.do_initialize()
         self.clear_all_breaks()
         super().do_continue(arg)
         return 1
-
     do_q = do_quit
     do_exit = do_quit
+
+    def do_continue(self, arg):
+        self.do_initialize()
+        super().do_continue(arg)
+        return 1
+    do_c = do_continue
+
+    def do_next(self, arg):
+        self.do_initialize()
+        super().do_next(arg)
+        return 1
+    do_n = do_next
+
+    def do_step(self, arg):
+        self.do_initialize()
+        super().do_step(arg)
+        return 1
+    do_s = do_step
+
+    def do_initialize(self):
+        clocals = self.curframe_locals
+        cglobals = self.curframe.f_globals
+        cglobals['setting_dict'] = cglobals.get('setting_dict', {})
+        try:
+            md = clocals['self'].get_metadata()
+            varnames = (list(md.non_optional_params.keys()) +
+                        list(md.optional_params.keys()))
+            for name in varnames:
+                try:
+                    cglobals['setting_dict'][name] = clocals[name] if (
+                        name in clocals) else clocals['kwargs'][name]
+                except KeyError:
+                    pass
+            return 1, varnames, clocals, cglobals, md
+        except KeyError:
+            return 0, None, None, None, None
+
+    def do_settings(self, arg):
+        x, varnames, clocals, cglobals, md = self.do_initialize()
+        if x is 0 and varnames is None:
+            self.message('move on')
+        else:
+            vardict = dict(list(md.optional_params.items()) +
+                           list(md.non_optional_params.items()))
+            for name in varnames:
+                try:
+                    self.message('%s = %r' %
+                                 (name, cglobals['setting_dict'][name]))
+                except KeyError:
+                    self.message('%s = %r' % (name, vardict[name][2]))
 
 
 def debug_run(func, dbg=None, *args, **kwargs):

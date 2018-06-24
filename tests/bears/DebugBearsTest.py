@@ -1,9 +1,21 @@
+import multiprocessing
 import unittest
 import sys
 
 from io import StringIO
 
-from coalib.bears.Bear import Debugger, debug_run
+from coalib.bears.Bear import Bear, Debugger, debug_run
+from coalib.bears.LocalBear import LocalBear
+from coalib.settings.Section import Section
+
+
+class TestOneBear(LocalBear):
+    def __init__(self, section, queue, timeout=0.1, debugger=False):
+        Bear.__init__(self, section, queue, timeout, debugger)
+
+    def run(self, filename, file, x: int, y: str, z: int = 79, w: str = 'kbc'):
+        yield 1
+        yield 2
 
 
 def func1(*args, **kwargs):
@@ -35,6 +47,8 @@ class DebugBearsTest(unittest.TestCase):
         # BearTest file.
         # https://goo.gl/sKaJfh
         self.trace = sys.gettrace()
+        self.queue = multiprocessing.Queue()
+        self.section = Section('name')
 
     def tearDown(self):
         sys.settrace(self.trace)
@@ -66,3 +80,15 @@ class DebugBearsTest(unittest.TestCase):
         self.assertEqual(lines[3], '-> yield 1')
         self.assertEqual(lines[5], '-> yield 2')
         self.assertEqual(lines[7], '-> yield 3')
+
+    def test_do_initialize(self):
+        my_bear = TestOneBear(self.section, self.queue)
+        args = ('a', ('b', 'c'))
+        kwargs = {'x': 2, 'y': 'abc'}
+        result, output = execute_debugger(['settings', 'q', 'c', 'q'],
+                                          my_bear.run, *args, **kwargs)
+        lines = output.splitlines()
+        self.assertEqual(lines[2], '(Pdb) x = 2')
+        self.assertEqual(lines[3], "y = 'abc'")
+        self.assertEqual(lines[4], 'z = 79')
+        self.assertEqual(lines[5], "w = 'kbc'")
