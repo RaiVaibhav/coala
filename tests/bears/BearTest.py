@@ -8,7 +8,7 @@ from os.path import abspath, exists, isfile, join, getmtime
 import shutil
 
 from freezegun import freeze_time
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock, DEFAULT
 
 import requests
 import requests_mock
@@ -129,6 +129,15 @@ class TestOneBear(Bear):
         Bear.__init__(self, section, queue, timeout, debugger)
 
     def run(self, *args, **kwargs):
+        yield 1
+        yield 2
+
+
+class TestTwoBear(LocalBear):
+    def __init__(self, section, queue, timeout=0.1, debugger=False):
+        Bear.__init__(self, section, queue, timeout, debugger)
+
+    def run(self, filename, file, x: int, y: str, z: int = 79, w: str = 'kbc'):
         yield 1
         yield 2
 
@@ -475,12 +484,18 @@ class BearTest(BearTestBase):
         self.check_message(LOG_LEVEL.DEBUG)
 
     # Mock test added to solve the coverage problem by DebugBearsTest
-    @patch('pdb.Pdb.do_continue')
-    def test_custom_continue(self, do_continue):
+    @patch('coalib.bears.Bear.Debugger.do_initialize')
+    @patch.multiple('pdb.Pdb', do_continue=DEFAULT, do_next=DEFAULT,
+                    do_step=DEFAULT)
+    def test_custom_dbg_command(self, do_initialize, do_continue, do_next,
+                                do_step):
         arg = {}
-        Debugger().do_quit(arg)
-        pdb.Pdb.do_continue.assert_called_once_with(arg)
         self.assertEqual(Debugger().do_quit(arg), 1)
+        Debugger.do_initialize.assert_called_once_with()
+        pdb.Pdb.do_continue.assert_called_once_with(arg)
+        self.assertEqual(Debugger().do_continue(arg), 1)
+        self.assertEqual(Debugger().do_next(arg), 1)
+        self.assertEqual(Debugger().do_step(arg), 1)
 
     @patch('coalib.bears.Bear.Debugger.runcall', side_effect=((1, 2), 1, 2))
     def test_debug_run_with_return(self, runcall):
@@ -499,6 +514,22 @@ class BearTest(BearTestBase):
         kwargs = {'d': 'e'}
         self.assertEqual(debug_run(my_bear.run, Debugger, *args, **kwargs), 1)
         self.assertIsNotNone(my_bear.run_bear_from_section(args, kwargs))
+
+    def test_do_initialize(self):
+        arg = ()
+        Debugger.curframe = MagicMock()
+        section = Section('name')
+        my_bear = TestTwoBear(section, self.queue)
+        Debugger.curframe_locals = {'x': 2, 'y': 'kbc2', 'z': 79,
+                                    'self': my_bear}
+        Debugger.curframe.f_globals = {'a': 1}
+        some, _, _, _, _ = Debugger().do_initialize()
+        self.assertEqual(some, 1)
+        Debugger().do_settings(arg)
+        Debugger.curframe_locals = {'x': 2, 'z': 79, 'w': 'kbc'}
+        some, _, _, _, _ = Debugger().do_initialize()
+        self.assertEqual(some, 0)
+        Debugger().do_settings(arg)
 
 
 class BrokenReadHTTPResponse(BytesIO):
