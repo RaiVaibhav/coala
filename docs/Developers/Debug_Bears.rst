@@ -121,3 +121,69 @@ or
     bears = PEP8Bear,MypyBear
     files = <filename>
     debug_bears = True
+
+Inspect Bear settings
+---------------------
+
+External pdb command ``settings`` has been included to inspect the bear
+settings in the debugging environment.
+
+Bellow is the code of simple CharCheckBear which check whether the
+passed message contains character more than 79 characters.
+
+.. code:: python
+
+    import logging
+
+    from coalib.bears.LocalBear import LocalBear
+
+
+    class CharCheckBear(LocalBear):
+        def run(self, filename, file, message: str, line_length: int = 79):
+            """
+            Detect if a passed string contain characters more than 79.
+
+            :param message:
+                enter the message.
+            """
+            if len(message)<=79:
+                yield self.new_result(message=message, file=filename)
+            else:
+                yield self.new_result(message='message contains character '
+                                              'more than 79', file=filename)
+
+After invoking debugger on CharCheckBear, ``settings`` command in debugging
+environemnt will be used to display the settings of a Bear i.e.,
+
+::
+
+    Please enter a value for the setting "message" (enter the message.) needed
+    by CharCheckBear for section "cli":
+    Hello World
+    [DEBUG][17:25:09] Platform Linux -- Python 3.6.5, coalib
+    0.12.0.dev99999999999999
+    Executing section cli...
+    [DEBUG][17:25:09] Files that will be checked:
+    /home/Voldemort/test/mytest.py
+    [DEBUG][17:25:09] coala is run only on changed files, bears' log messages
+    from previous runs may not appear. You may use the `--flush-cache` flag to
+    see them.
+    [DEBUG][17:25:09] Running bear CharCheckBear...
+    > /home/Voldemort/coala-bears/bears/general/CharCheckBear.py(14)run()
+    -> if len(message)<=79:
+    (Pdb) settings
+    line_length = 79
+    message = 'Hello World'
+    (Pdb) c
+    --Return--
+    > /home/Voldemort/coala-bears/bears/general/CharCheckBear.py(14)run()->None
+    -> if len(message)<=79:
+    (Pdb) c
+
+    mytest.py
+    **** HelloWorldBear [Section: cli | Severity: NORMAL] ****
+    !    ! Hello World
+    [    ] *0. Do (N)othing
+    [    ]  1. (O)pen file
+    [    ]  2. Add (I)gnore comment
+    [    ] Enter number (Ctrl-D to exit):
