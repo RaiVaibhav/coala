@@ -25,6 +25,10 @@ from .meta import bearclass
 
 
 class Debugger(pdb.Pdb):
+    def __init__(self, *args, **kwargs):
+        self.setting_dict = {}
+        self.flag = 0
+        super(Debugger, self).__init__(*args, **kwargs)
 
     def do_quit(self, arg):
         self.clear_all_breaks()
@@ -33,6 +37,51 @@ class Debugger(pdb.Pdb):
 
     do_q = do_quit
     do_exit = do_quit
+
+    def replace_item(self, obj, key, replace_value):
+        for k, v in obj.items():
+            if isinstance(v, dict):
+                obj[k] = self.replace_item(v, key, replace_value)
+        if key in obj:
+            self.flag = 1
+            obj[key] = replace_value
+        return obj
+
+    def do_settings(self, arg):
+        clocals = self.curframe_locals
+        arg = arg.replace(' ', '')
+        if '=' in arg:
+            arg_list = arg.split(';')
+            for arg in arg_list:
+                i = arg.rfind('=')
+                key = arg[:i]
+                value = arg[i+1:]
+                try:
+                    value = eval(value)
+                    self.flag = 0
+                    self.replace_item(clocals, key, value)
+                    if self.flag:
+                        self.setting_dict[key] = value
+                    else:
+                        self.message("'%s' key is not in scope" % (key))
+                except Exception as e:
+                    self.message(e)
+        else:
+            try:
+                md = clocals['self'].get_metadata()
+                m_dict = md.create_params_from_section(clocals['self'].section)
+
+                vardict = dict(list(md.non_optional_params.items()) +
+                               list(md.optional_params.items()))
+                for var in vardict:
+                    if var in self.setting_dict:
+                        self.message('%s = %r' % (var, self.setting_dict[var]))
+                    elif var in m_dict:
+                        self.message('%s = %r' % (var, m_dict[var]))
+                    else:
+                        self.message('%s = %r' % (var, vardict[var][2]))
+            except Exception as e:
+                self.message('self is not in scope')
 
 
 def debug_run(func, dbg=None, *args, **kwargs):

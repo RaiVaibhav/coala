@@ -124,6 +124,15 @@ class StandAloneBear(Bear):
         yield z
 
 
+class TestTwoBear(LocalBear):
+    def __init__(self, section, queue, timeout=0.1, debugger=False):
+        Bear.__init__(self, section, queue, timeout, debugger)
+
+    def run(self, filename, file, x: int, y: str, z: int = 79, w: str = 'kbc'):
+        yield 1
+        yield 2
+
+
 class DependentBear(Bear):
 
     BEAR_DEPS = {StandAloneBear}
@@ -488,6 +497,25 @@ class BearTest(BearTestBase):
         args = ()
         kwargs = {}
         self.assertIsNone(my_bear.run_bear_from_section(args, kwargs))
+
+    def test_debugger_settings_with_self_onscope(self):
+        section = Section('name', None)
+        section.append(Setting('x', '85'))
+        section.append(Setting('y', 'kbc3'))
+        my_bear = TestTwoBear(section, self.queue)
+        Debugger.curframe_locals = {'x': 2, 'y': 'kbc2', 'some': {'z': 79},
+                                    'self': my_bear}
+        arg = 'z = 3;abc= 78; z=kbc'
+        dbg = Debugger()
+        dbg.do_settings(arg)
+        self.assertEqual(dbg.setting_dict, {'z': 3})
+        arg = ''
+        dbg.do_settings(arg)
+
+    def test_debugger_settings_no_self_inscope(self):
+        arg = ' '
+        Debugger.curframe_locals = {'x': 2, 'z': 79, 'w': 'kbc'}
+        Debugger().do_settings(arg)
 
 
 class BrokenReadHTTPResponse(BytesIO):
