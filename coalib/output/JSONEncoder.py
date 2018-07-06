@@ -6,6 +6,12 @@ from datetime import datetime
 from coala_utils.decorators import get_public_members
 from coalib.settings.FunctionMetadata import FunctionMetadata
 
+try:
+    pattern_type = re._pattern_type
+# '_pattern_type' has been renamed to 'Pattern' in python3.7
+except AttributeError:  # pragma: no cover
+    pattern_type = re.Pattern
+
 
 def create_json_encoder(**kwargs):
     class JSONEncoder(json.JSONEncoder):
@@ -30,7 +36,7 @@ def create_json_encoder(**kwargs):
             elif hasattr(obj, '__dict__'):
                 return {member: getattr(obj, member)
                         for member in get_public_members(obj)}
-            elif isinstance(obj, re._pattern_type):
+            elif isinstance(obj, pattern_type):
                 return obj.pattern
 
             return json.JSONEncoder.default(self, obj)
