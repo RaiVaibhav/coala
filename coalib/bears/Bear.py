@@ -1,10 +1,11 @@
 import inspect
+import cProfile
 import pdb
 import collections
 import traceback
 from functools import partial
 from os import makedirs
-from os.path import join, abspath, exists
+from os.path import join, abspath, exists, isdir
 import requests
 from appdirs import user_data_dir
 
@@ -24,6 +25,23 @@ from coalib.settings.ConfigurationGathering import get_config_directory
 from .meta import bearclass
 
 
+def _setting_is_enabled(bear, key):
+    """
+    Check setting key is in section.
+
+    :param bear: Bear object.
+    :param key:  Setting key.
+    :return:     Setting object if setting key is in section else ``False``.
+    """
+    if not isinstance(bear, Bear):
+        raise ValueError('Positional argument bear is not an instance of '
+                         'Bear class.')
+    if key is None:
+        raise ValueError('No setting key passed.')
+
+    return (False if key not in bear.section else bear.section[key])
+
+
 def _is_debugged(bear):
     """
     Check whether the bear is in debug mode according to its section-settings.
@@ -32,17 +50,29 @@ def _is_debugged(bear):
     :return:     True if ``debug_bears`` is ``True`` or if bear name specified
                  in ``debug_bears`` setting match with the bear parameter.
     """
-    if not isinstance(bear, Bear):
-        raise ValueError('Positional argument bear is not an instance of '
-                         'Bear class.')
-    if 'debug_bears' not in bear.section:
-        return False
+    setting = _setting_is_enabled(bear, key='debug_bears')
     try:
-        return bool(bear.section['debug_bears'])
+        value = bool(setting)
     except ValueError:
-        pass
-    return bear.name.lower() in (
-            map(str.lower, bear.section['debug_bears']))
+        value = bear.name.lower() in (
+                    map(str.lower, setting))
+    return value
+
+
+def _is_profiled(bear):
+    """
+    Check whether the bear is in profile mode according to its section-settings.
+
+    :param bear: Bear object.
+    :return:     True if ``profile`` is ``True`` or False if ``profile`` is
+                 ``False`` else return directory path specified in ``profile``.
+    """
+    setting = _setting_is_enabled(bear, key='profile')
+    try:
+        value = bool(setting)
+    except ValueError:
+        value = setting.value
+    return value
 
 
 class Debugger(pdb.Pdb):
@@ -322,6 +352,11 @@ class Bear(Printer, LogPrinterMixin, metaclass=bearclass):
         self.message_queue = message_queue
         self.timeout = timeout
         self.debugger = _is_debugged(bear=self)
+        self.profile = _is_profiled(bear=self)
+
+        if self.profile and self.debugger:
+            raise ValueError('Cannot run debugger and profiler at the same '
+                             'time.')
 
         self.setup_dependencies()
         cp = type(self).check_prerequisites()
@@ -344,6 +379,35 @@ class Bear(Printer, LogPrinterMixin, metaclass=bearclass):
     def run(self, *args, dependency_results=None, **kwargs):
         raise NotImplementedError
 
+    def _dump_bear_profile_data(self, profiler):
+        filename = '{}_{}.prof'.format(self.section.name, self.name)
+        print(self.profile)
+        # import pdb; pdb.set_trace()
+        if self.profile is True:
+            path = filename
+        else:
+            path = join(self.profile, filename)
+            if not isdir(self.profile):
+                makedirs(self.profile)
+        profiler.dump_stats(path)
+
+    def profile_run(self, *args, profiler=None, **kwargs):
+        profiler = cProfile.Profile() if profiler is None else profiler
+        bear_results = profiler.runcall(self.run, *args, **kwargs)
+        if isinstance(bear_results, collections.Iterable):
+            results = []
+            iterator = iter(bear_results)
+            while True:
+                try:
+                    result = profiler.runcall(next, iterator)
+                    results.append(result)
+                except StopIteration:
+                    break
+        else:
+            results = bear_results
+        self._dump_bear_profile_data(profiler)
+        return results
+
     def run_bear_from_section(self, args, kwargs):
         try:
             # Don't get `language` setting from `section.contents`
@@ -359,6 +423,8 @@ class Bear(Printer, LogPrinterMixin, metaclass=bearclass):
             return
         if self.debugger:
             return debug_run(self.run, Debugger(bear=self), *args, **kwargs)
+        elif self.profile:
+            return self.profile_run(*args, **kwargs)
         else:
             return self.run(*args, **kwargs)
 
